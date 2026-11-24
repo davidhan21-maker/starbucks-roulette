@@ -1,0 +1,256 @@
+<!-- ... existing code ... -->
+      <p class="text-xs text-gray-500 mb-4">
+        맛있는 점심 식사 되세요! 🍚✨
+      </p>
+
+      <!-- 💬 [자동 수신] 카카오톡 당첨 인증하기 버튼 -->
+      <button 
+        id="kakaoAuthBtn" 
+        class="btn-active w-full bg-[#FEE500] hover:bg-[#FADA0A] text-[#191919] font-extrabold text-base py-3 rounded-xl shadow-sm mb-2.5 transition-all flex items-center justify-center gap-2">
+        <svg class="w-5 h-5 fill-current text-[#191919]" viewBox="0 0 24 24">
+          <path d="M12 3c-4.97 0-9 3.185-9 7.115 0 2.557 1.707 4.8 4.27 6.054-.188.702-.682 2.545-.78 2.94-.122.49.178.483.376.352.155-.102 2.469-1.68 3.472-2.366.538.077 1.091.12 1.662.12 4.97 0 9-3.186 9-7.115S16.97 3 12 3z"/>
+        </svg>
+        <span>카카오톡으로 당첨 인증하기</span>
+      </button>
+
+      <!-- 모달 내부 다시 돌리기 버튼 -->
+      <button 
+        id="modalResetBtn" 
+        class="btn-active w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-extrabold text-lg py-3.5 rounded-xl shadow-md transition-all">
+        다시 돌리기
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // 1. 6개 조각 교대 배치 데이터 정의
+    const menus = [
+      { name: "<스타벅스 커피한잔>", color: "#00704A", textColor: "#FFFFFF", emoji: "☕" },
+      { name: "<다음기회에>", color: "#E5E7EB", textColor: "#374151", emoji: "😭" },
+      { name: "<스타벅스 커피한잔>", color: "#00704A", textColor: "#FFFFFF", emoji: "☕" },
+      { name: "<다음기회에>", color: "#E5E7EB", textColor: "#374151", emoji: "😭" },
+      { name: "<스타벅스 커피한잔>", color: "#00704A", textColor: "#FFFFFF", emoji: "☕" },
+      { name: "<다음기회에>", color: "#E5E7EB", textColor: "#374151", emoji: "😭" }
+    ];
+
+    const totalSlices = menus.length;
+    const sliceAngle = (2 * Math.PI) / totalSlices;
+
+    // DOM 요소
+    const canvas = document.getElementById("rouletteCanvas");
+    const ctx = canvas.getContext("2d");
+    const spinBtn = document.getElementById("spinBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const modalResetBtn = document.getElementById("modalResetBtn");
+    const quickResult = document.getElementById("quickResult");
+    const resultModal = document.getElementById("resultModal");
+    const modalMenuName = document.getElementById("modalMenuName");
+    const modalEmoji = document.getElementById("modalEmoji");
+    const kakaoAuthBtn = document.getElementById("kakaoAuthBtn");
+
+    // 애니메이션 및 회전 관련 변수
+    let currentAngle = 0; // 현재 회전 각도 (라디안)
+    let isSpinning = false;
+    let animationFrameId = null;
+
+    // Canvas 해상도 맞춤 처리 (고해상도 디스플레이 대응)
+    function setupCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      
+      drawRoulette();
+    }
+
+    // 2. 룰렛 그리기 함수
+    function drawRoulette() {
+      const width = canvas.getBoundingClientRect().width;
+      const height = canvas.getBoundingClientRect().height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = Math.min(centerX, centerY) - 2;
+
+      ctx.clearRect(0, 0, width, height);
+
+      for (let i = 0; i < totalSlices; i++) {
+        const item = menus[i];
+        // 룰렛 조각 시작 및 끝 각도 (currentAngle을 더해 회전 구현)
+        const startAngle = currentAngle + i * sliceAngle;
+        const endAngle = startAngle + sliceAngle;
+
+        // 1) 조각 배경 부채꼴 그리기
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = item.color;
+        ctx.fill();
+
+        // 2) 조각 경계선
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // 3) 텍스트 그리기
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        
+        // 각 조각의 중앙 각도로 회전
+        const textAngle = startAngle + sliceAngle / 2;
+        ctx.rotate(textAngle);
+
+        // 텍스트 위치 설정 (반지름의 약 62% 위치)
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = item.textColor;
+
+        // 모바일/PC 대응 폰트 크기 계산 (글씨수가 길어졌으므로 폰트 사이즈 조정)
+        const fontSize = width < 300 ? 12 : 14;
+        ctx.font = `800 ${fontSize}px 'Noto Sans KR', sans-serif`;
+
+        // 그림자 효과로 글씨 시독성 추가 강화
+        ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+        ctx.shadowBlur = 3;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+
+        // 메뉴 이름 표시 (잘리지 않도록 반지름 55% 위치에 배치)
+        ctx.fillText(item.name, radius * 0.55, 0);
+
+        ctx.restore();
+      }
+    }
+
+    // 3. 룰렛 회전 애니메이션 실행
+    function spinRoulette() {
+      if (isSpinning) return;
+
+      isSpinning = true;
+      spinBtn.disabled = true;
+      spinBtn.classList.add("opacity-50", "cursor-not-allowed");
+      
+      quickResult.innerHTML = `<p class="text-base font-bold text-orange-600 animate-pulse">🎯 점심 메뉴를 고르는 중...</p>`;
+
+      // 무작위 당첨 인덱스 선택
+      const targetIndex = Math.floor(Math.random() * totalSlices);
+      const selectedMenu = menus[targetIndex];
+
+      const targetAngleOffset = -Math.PI / 2 - (targetIndex + 0.5) * sliceAngle;
+      
+      // 최소 회전 바퀴 수 (5바퀴 ~ 7바퀴 사이 무작위 추가)
+      const extraRounds = Math.floor(Math.random() * 3) + 5;
+      const totalRotationNeeded = (extraRounds * 2 * Math.PI);
+
+      const startAngle = currentAngle;
+      const normalizedCurrent = startAngle % (2 * Math.PI);
+      
+      let finalAngle = startAngle + totalRotationNeeded + (targetAngleOffset - normalizedCurrent);
+      
+      while (finalAngle - startAngle < totalRotationNeeded) {
+        finalAngle += 2 * Math.PI;
+      }
+
+      const duration = 4500; // 4.5초
+      const startTime = performance.now();
+
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeProgress = easeOutCubic(progress);
+
+        currentAngle = startAngle + (finalAngle - startAngle) * easeProgress;
+        drawRoulette();
+
+        if (progress < 1) {
+          animationFrameId = requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          spinBtn.disabled = false;
+          spinBtn.classList.remove("opacity-50", "cursor-not-allowed");
+          
+          showResult(selectedMenu);
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+    // 4. 결과 발표 및 팝업/축하 효과
+    function showResult(menu) {
+      const isWin = menu.name.includes("스타벅스");
+      
+      quickResult.innerHTML = `
+        <div class="${isWin ? 'bg-emerald-100 border-emerald-300' : 'bg-gray-100 border-gray-300'} border rounded-full px-4 py-1 inline-flex items-center gap-2">
+          <span class="text-xs text-gray-600 font-medium">선택됨:</span>
+          <span class="text-base font-extrabold text-gray-900">${menu.name} ${menu.emoji}</span>
+        </div>
+      `;
+
+      modalMenuName.textContent = menu.name;
+      modalEmoji.textContent = menu.emoji;
+
+      resultModal.classList.remove("hidden");
+
+      // 당첨일 경우에만 폭죽 효과
+      if (isWin && typeof confetti === 'function') {
+        confetti({
+          particleCount: 100,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+      }
+    }
+
+    // 5. 모달 닫기 & 리셋
+    function closeModal() {
+      resultModal.classList.add("hidden");
+    }
+
+    function resetRoulette() {
+      if (isSpinning) return;
+      closeModal();
+      quickResult.innerHTML = `<p class="text-sm sm:text-base font-semibold text-gray-500">'점심 메뉴 돌리기' 버튼을 눌러주세요!</p>`;
+    }
+
+    // 💬 [카카오톡 당첨 인증] 버튼 동작 로직
+    kakaoAuthBtn.addEventListener("click", () => {
+      // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+      // 아래 "https://open.kakao.com" 따옴표 안에 본인의 1:1 오픈채팅방 주소를 넣어주세요!
+      // 예시: const myKakaoLink = "https://open.kakao.com/o/s1234567";
+      // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+      const myKakaoLink = "https://open.kakao.com/o/sq99UnYi"; 
+
+      if (myKakaoLink === "https://open.kakao.com") {
+        alert("카카오톡 오픈채팅방 링크가 아직 입력되지 않았습니다!\n코드 안의 myKakaoLink 변수에 오픈채팅 주소를 넣어주세요.");
+        return;
+      }
+      
+      window.open(myKakaoLink, "_blank");
+    });
+
+    // 이벤트 리스너 등록
+    spinBtn.addEventListener("click", spinRoulette);
+    resetBtn.addEventListener("click", resetRoulette);
+    modalResetBtn.addEventListener("click", resetRoulette);
+
+    resultModal.addEventListener("click", (e) => {
+      if (e.target === resultModal) {
+        closeModal();
+      }
+    });
+
+    window.addEventListener("resize", setupCanvas);
+
+    window.onload = () => {
+      setupCanvas();
+    };
+  </script>
+</body>
+</html>
